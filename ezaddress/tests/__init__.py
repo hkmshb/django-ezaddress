@@ -1,0 +1,3 @@
+"""
+ezaddress.tests package
+"""
