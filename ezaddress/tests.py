@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from ezaddress.models import Country, State
+from ezaddress.models import Country, State, Address
 
 
 
@@ -86,5 +86,64 @@ class StateTestCase(BaseTestCase):
         State.objects.create(name='Port Harcourt', country=self.ng)
         self.assertEqual(State.objects.count(), 5)    # 4 created by setUp
 
+
+class AddressTestCase(BaseTestCase):
+    
+    def setUp(self):
+        super(AddressTestCase, self).setUp()
+        self.ng_dt = State.objects.create(name='Delta', code='DT', country=self.ng)
+        self.ng_lg = State.objects.create(name='Lagos', code='LG', country=self.ng)
+        self.gh_ac = State.objects.create(name='Accra', code='AC', country=self.gh)
+        
+        self.addr1 = Address.objects.create(
+                # include :: in raw to differentiate from __str__ repr
+                raw='No 1 Bank Road, Eko 720015, Lagos, Nigeria ::',
+                street='No 1 Bank Road', town_city='Eko', 
+                postal_code='720015', state=self.ng_lg)
+        self.addr2 = Address.objects.create(
+                raw='33 Willams Street, Asaba 720016, Delta, Nigeria',
+                street='33 Willams Street', town_city='Asaba',
+                postal_code='720016', state=self.ng_lg)
+        self.addr3 = Address.objects.create(
+                raw='5243 Koffi Avenue, Akanta 982201, Accra, Ghana',
+                street='5243 Koffi Avenue', town_city='Akanta',
+                postal_code='982201', state=self.gh_ac)
+        self.addr4 = Address.objects.create(raw='1 Alu Avenue')
+    
+    def test_string_representation_with_all_fields_provided(self):
+        self.assertEqual('No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+                         str(self.addr1))
+    
+    def test_string_representation_with_only_raw_field(self):
+        self.assertEqual('1 Alu Avenue', str(self.addr4))
+    
+    def test_addresses_ordering(self):
+        items = Address.objects.all()
+        self.assertEqual(items.count(), 4)
+        self.assertEqual(items[0].town_city, '')
+        self.assertEqual(items[1].town_city, 'Akanta')
+        self.assertEqual(items[2].town_city, 'Asaba')
+        self.assertEqual(items[3].town_city, 'Eko')
+    
+    def test_validation_fails_for_blank_raw_field(self):
+        addr = Address(street='No 1 Bank Road', town_city='Eko',
+                       postal_code='720015', state=self.ng_lg)
+        with self.assertRaises(ValidationError):
+            addr.full_clean()
+    
+    def test_getting_address_as_dict(self):
+        fields = ('raw','street','town_city','postal_code')
+        addr_dict = self.addr1.as_dict()
+        
+        for f in fields:
+            self.assertEqual(getattr(self.addr1, f), addr_dict.get(f))
+        
+        state = self.addr1.state
+        self.assertEqual(state.name, addr_dict.get('state'))
+        self.assertEqual(state.code, addr_dict.get('state_code'))
+        
+        country = state.country
+        self.assertEqual(country.name, addr_dict.get('country'))
+        self.assertEqual(country.code, addr_dict.get('country_code'))
 
 
