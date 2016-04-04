@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from ezaddress.models import Country, State, Address
+from ezaddress.models import to_address
+from ezaddress.models import *
 
 
 
@@ -146,4 +147,133 @@ class AddressTestCase(BaseTestCase):
         self.assertEqual(country.name, addr_dict.get('country'))
         self.assertEqual(country.code, addr_dict.get('country_code'))
 
+
+class AddressFieldTestCase(TestCase):
+    
+    class TestModel(object):
+        address = AddressField()
+    
+    def setUp(self):
+        self.addr_dict = {
+            'raw': 'No. 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'state': 'Lagos',
+            'state_code': 'LG',
+            'country': 'Nigeria',
+            'country_code': 'NG'
+        }
+        self.test = self.TestModel()
+    
+    def test_assignment_from_string(self):
+        self.test.address = to_address(self.addr_dict['raw'])
+        self.assertEqual(self.test.address.raw, self.addr_dict['raw'])
+    
+    def test_assignment_from_dict(self):
+        self.test.address = to_address(self.addr_dict)
+        self.assertEqual(self.test.address.raw, self.addr_dict['raw'])
+        self.assertEqual(self.test.address.street, self.addr_dict['street'])
+        self.assertEqual(self.test.address.town_city, self.addr_dict['town_city'])
+        self.assertEqual(self.test.address.postal_code, self.addr_dict['postal_code'])
+        self.assertEqual(self.test.address.state.name, self.addr_dict['state'])
+        self.assertEqual(self.test.address.state.code, self.addr_dict['state_code'])
+        self.assertEqual(self.test.address.state.country.name, self.addr_dict['country'])
+        self.assertEqual(self.test.address.state.country.code, self.addr_dict['country_code'])
+    
+    def test_assignment_from_dict_with_no_country(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'state': 'Lagos',
+            'state_code': 'LG',
+        }
+        self.test.address = to_address(addr_dict)
+        self.assertEqual(self.test.address.raw, addr_dict['raw'])
+        self.assertEqual(self.test.address.street, '')
+        self.assertEqual(self.test.address.town_city, '')
+        self.assertEqual(self.test.address.postal_code, '')
+        self.assertEqual(self.test.address.state, None)
+    
+    def test_assignment_from_dict_with_no_state(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'country': 'Nigeria',
+            'country_code': 'NG',
+        }
+        self.test.address = to_address(addr_dict)
+        self.assertEqual(self.test.address.raw, addr_dict['raw'])
+        self.assertEqual(self.test.address.street, '')
+        self.assertEqual(self.test.address.town_city, '')
+        self.assertEqual(self.test.address.postal_code, '')
+        self.assertEqual(self.test.address.state, None)
+    
+    def test_assignment_from_dict_with_only_address(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+        }
+        self.test.address = to_address(addr_dict)
+        self.assertEqual(self.test.address.raw, addr_dict['raw'])
+        self.assertEqual(self.test.address.street, addr_dict['street'])
+        self.assertEqual(self.test.address.town_city, addr_dict['town_city'])
+        self.assertEqual(self.test.address.postal_code, addr_dict['postal_code'])
+        self.assertEqual(self.test.address.state, None)
+    
+    
+    def test_assignment_from_dict_with_duplicate_country_code(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'state': 'Lagos',
+            'state_code': 'LG',
+            'country': 'Nigeria',
+            'country_code': 'Nigeria',
+        }
+        self.test.address = to_address(addr_dict)
+        self.assertEqual(self.test.address.raw, addr_dict['raw'])
+        self.assertEqual(self.test.address.street, addr_dict['street'])
+        self.assertEqual(self.test.address.town_city, addr_dict['town_city'])
+        self.assertEqual(self.test.address.postal_code, addr_dict['postal_code'])
+        self.assertEqual(self.test.address.state.name, 'Lagos')
+        self.assertEqual(self.test.address.state.code, 'LG')
+        self.assertEqual(self.test.address.state.country.name, 'Nigeria')
+        self.assertEqual(self.test.address.state.country.code, '')
+    
+    def test_assignment_from_dict_with_invalid_country_code(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'state': 'Lagos',
+            'state_code': 'LG',
+            'country': 'Nigeria',
+            'country_code': 'Something;Invalid',
+        }
+        with self.assertRaises(ValueError):
+            to_address(addr_dict)
+    
+    def test_assignment_from_dict_with_invalid_state_code(self):
+        addr_dict = {
+            'raw': 'No 1 Bank Road, Eko 720015, Lagos, Nigeria',
+            'street': 'No. 1 Bank Road',
+            'town_city': 'Eko',
+            'postal_code': '720015',
+            'state': 'Lagos',
+            'state_code': 'Something;Invalid',
+            'country': 'Nigeria',
+            'country_code': 'NG',
+        }
+        with self.assertRaises(ValueError):
+            to_address(addr_dict)
 
