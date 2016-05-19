@@ -38,6 +38,8 @@ def _to_address(value):
     town_city = value.get('town_city', '')
     latitude = value.get('latitude', None)
     longitude = value.get('longitude', None)
+    altitude = value.get('altitude', None)
+    gps_error = value.get('gps_error', None)
     
     # raw value is mandatory; if not present dict isn't an Address equivalent
     if not raw:
@@ -96,6 +98,8 @@ def _to_address(value):
             state = state_obj,
             latitude = latitude,
             longitude = longitude,
+            altitude = altitude,
+            gps_error = gps_error,
         )
     
     addr_obj.save()
@@ -161,14 +165,16 @@ class State(models.Model):
 
 @python_2_unicode_compatible
 class Address(models.Model):
-    street = models.CharField(_('Street Address'), max_length=100, blank=True)
-    town_city = models.CharField(_('Town or City'), max_length=50, blank=True)
-    postal_code = models.CharField(max_length=10, blank=True)
-    state = models.ForeignKey(State, blank=True, null=True,
-                related_name='addresses')
     raw = models.CharField(max_length=200)
+    street = models.CharField(_('Street Address'), max_length=100, blank=True)
+    town_city = models.CharField(_('Town/City'), max_length=50, blank=True)
+    state = models.ForeignKey(State, verbose_name=_('State'), blank=True, 
+                null=True, related_name='+')
+    postal_code = models.CharField(_('Postal Code'), max_length=10, blank=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
+    altitude = models.FloatField(blank=True, null=True)
+    gps_error = models.PositiveSmallIntegerField(blank=True, null=True)
     
     class Meta:
         verbose_name_plural = 'Addresses'
@@ -205,7 +211,9 @@ class Address(models.Model):
             town_city = self.town_city,
             raw = self.raw,
             latitude = self.latitude if self.latitude else '',
-            longitude = self.longitude if self.longitude else ''
+            longitude = self.longitude if self.longitude else '',
+            altitude = self.altitude if self.altitude else '',
+            gps_error = self.gps_error if self.gps_error else '',
         )
         if self.state:
             addr['state'] = self.state.name
@@ -215,6 +223,30 @@ class Address(models.Model):
                 addr['country'] = self.state.country.name
                 addr['country_code'] = self.state.country.code
         return addr
+
+
+class AddressMixin(object):
+    """A mixin which defines address fields for use within a model."""
+    addr_street = models.CharField(_('Street Address'), max_length=100, blank=True)
+    addr_town   = models.CharField(_('Town/City'), max_length=20, blank=True)
+    addr_state  = models.ForeignKey(State, verbose_name=_('State'), blank=True, 
+                    null=True, related_name='+')
+    postal_code = models.CharField(_('Postal Code'), max_length=10, blank=True)
+
+
+class GPSMixin(object):
+    """A mixin which defines GPS lat/lng/alt fields for use within a model."""
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+    altitude  = models.FloatField(blank=True, null=True)
+    gps_error = models.PositiveSmallIntegerField(blank=True, null=True)
+
+
+class AddressGPSMixin(AddressMixin, GPSMixin):
+    """A mixin which defines address and geometric lat/lng/alt fields for use 
+    within a model.
+    """
+    pass
 
 
 class AddressDescriptor(ForwardManyToOneDescriptor):

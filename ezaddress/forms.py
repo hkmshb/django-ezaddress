@@ -31,8 +31,8 @@ class AddressField(forms.ModelChoiceField):
         if value is None or value == '':
             return None
         
-        # check for garbage lat/lng entries
-        for field in ['latitude', 'longitude']:
+        # check for garbage lat/lng/alt entries
+        for field in ['latitude', 'longitude', 'altitude']:
             if field in value:
                 if value[field]:
                     try:
@@ -43,5 +43,15 @@ class AddressField(forms.ModelChoiceField):
                             code='invalid', params={'field': field})
                 else:
                     value[field] = None
+        
+        # also check for garbage gps_error entry
+        field = 'gps_error'
+        if field in value:
+            try:
+                value[field] = int(value[field])
+            except:
+                raise forms.ValidationError(
+                    _('Invalid value for %(field)s'),
+                    code='invalid', params={'field': field})
         return to_address(value)
 
