@@ -224,29 +224,31 @@ class Address(models.Model):
                 addr['country_code'] = self.state.country.code
         return addr
 
-
-class AddressMixin(object):
-    """A mixin which defines address fields for use within a model."""
+# note: changed to using an abstract base model as opposed a mixin due to
+# migration issues; according to https://code.djangoproject.com/ticket/22601
+# model mixin are meant for sharing logic, if model fields are present then
+# abstract base model is needed in order for fields to appear in migrations
+class Addressable(models.Model):
+    """A model mixin which defines address fields."""
     addr_street = models.CharField(_('Street Address'), max_length=100, blank=True)
     addr_town   = models.CharField(_('Town/City'), max_length=20, blank=True)
     addr_state  = models.ForeignKey(State, verbose_name=_('State'), blank=True, 
                     null=True, related_name='+')
     postal_code = models.CharField(_('Postal Code'), max_length=10, blank=True)
 
+    class Meta:
+        abstract = True
 
-class GPSMixin(object):
-    """A mixin which defines GPS lat/lng/alt fields for use within a model."""
+
+class GPSLocatable(object):
+    """A model mixin which defines GPS lat/lng/alt fields."""
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
     altitude  = models.FloatField(blank=True, null=True)
     gps_error = models.PositiveSmallIntegerField(blank=True, null=True)
 
-
-class AddressGPSMixin(AddressMixin, GPSMixin):
-    """A mixin which defines address and geometric lat/lng/alt fields for use 
-    within a model.
-    """
-    pass
+    class Meta:
+        abstract = True
 
 
 class AddressDescriptor(ForwardManyToOneDescriptor):
@@ -265,4 +267,3 @@ class AddressField(models.ForeignKey):
     def contribute_to_class(self, cls, name, virtual_only=False):
         super(ForeignObject, self).contribute_to_class(cls, name, virtual_only)
         setattr(cls, self.name, AddressDescriptor(self))
-
