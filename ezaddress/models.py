@@ -129,6 +129,31 @@ def to_address(value):
     raise ValidationError(_('Invalid address value.'))
 
 
+def _to_address_str(**kwargs):
+    """INTERNAL METHOD
+    Used to format an Address or Addressable object to an Address string.
+    """
+    state = kwargs.get('state', None)
+    if state:
+        value = kwargs.get('street', '')
+        town_city = kwargs.get('town_city')
+        if town_city:
+            if value:
+                value += ', '
+            value += town_city
+            
+            postal_code = kwargs.get('postal_code', '')
+            if postal_code:
+                value += ' %s' % postal_code
+            
+        if value:
+            value += ', '
+        value += str(state)
+    else:
+        value = kwargs.get('raw', '')
+    return value
+
+
 @python_2_unicode_compatible
 class Country(models.Model):
     """A model for storing Country data."""
@@ -165,7 +190,7 @@ class State(models.Model):
 
 @python_2_unicode_compatible
 class Address(models.Model):
-    raw = models.CharField(max_length=200)
+    raw = models.CharField(max_length=200, blank=True)
     street = models.CharField(_('Street Address'), max_length=100, blank=True)
     town_city = models.CharField(_('Town/City'), max_length=50, blank=True)
     state = models.ForeignKey(State, verbose_name=_('State'), blank=True, 
@@ -181,25 +206,12 @@ class Address(models.Model):
         ordering = ('state', 'town_city', 'postal_code', 'street')
     
     def __str__(self):
-        if self.state:
-            value = ''
-            if self.street:
-                value = self.street
-            
-            if self.town_city:
-                if value:
-                    value += ', '
-                value += self.town_city
-                
-                if self.postal_code:
-                    value += ' %s' % self.postal_code
-                
-            if value:
-                value += ', '
-            value += str(self.state)
-        else:
-            value = self.raw
-        return value
+        return _to_address_str(**{
+            'street': self.street, 'town_city': self.town_city, 
+            'postal_code': self.postal_code, 'state': self.state,
+            'raw': self.raw
+        })
+
     
     def clean(self):
         if not self.raw:
@@ -230,6 +242,7 @@ class Address(models.Model):
 # abstract base model is needed in order for fields to appear in migrations
 class Addressable(models.Model):
     """A model mixin which defines address fields."""
+    addr_raw = models.CharField(max_length=200, blank=True)
     addr_street = models.CharField(_('Street Address'), max_length=100, blank=True)
     addr_town   = models.CharField(_('Town/City'), max_length=20, blank=True)
     addr_state  = models.ForeignKey(State, verbose_name=_('State'), blank=True, 
@@ -238,9 +251,16 @@ class Addressable(models.Model):
 
     class Meta:
         abstract = True
+    
+    def get_address_str(self):
+        return _to_address_str(**{
+            'street': self.addr_street, 'town_city': self.addr_town, 
+            'postal_code': self.postal_code, 'state': self.addr_state,
+            'raw': self.addr_raw
+        })
 
 
-class GPSLocatable(object):
+class GPSLocatable(models.Model):
     """A model mixin which defines GPS lat/lng/alt fields."""
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
